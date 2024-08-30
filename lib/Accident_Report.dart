@@ -3,7 +3,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:io';
 import 'dart:convert';
-import 'dart:typed_data';
+
+void main() {
+  runApp(MyApp());
+}
 
 class MyApp extends StatelessWidget {
   @override
@@ -31,8 +34,8 @@ class _AccidentReportPageState extends State<AccidentReportPage> {
   final TextEditingController _locationController = TextEditingController();
 
   List<File> _images = [];
-
   final ImagePicker _picker = ImagePicker();
+  String _selectedCategory = 'กรุณาเลือกประเภทอุบัติเหตุ';
 
   Future<void> _pickImage() async {
     final List<XFile>? pickedFiles = await _picker.pickMultiImage();
@@ -91,6 +94,9 @@ class _AccidentReportPageState extends State<AccidentReportPage> {
           if (responseData['status'] == 'success') {
             ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('รายงานอุบัติเหตุถูกส่งสำเร็จ')));
+
+            // After successful submission, send notification to server
+            _sendNotificationToServer(responseData['notification_id']);
           } else {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                 content: Text('เกิดข้อผิดพลาด: ${responseData['message']}')));
@@ -107,7 +113,30 @@ class _AccidentReportPageState extends State<AccidentReportPage> {
     }
   }
 
-  String _selectedCategory = 'กรุณาเลือกประเภทอุบัติเหตุ';
+  Future<void> _sendNotificationToServer(int notificationId) async {
+    try {
+      var response = await http.post(
+        Uri.parse('http://10.5.50.82/omni/AddNotification.php'),
+        body: {
+          'user_id': '1', // แทนที่ด้วย user_id ของผู้ใช้ที่ล็อกอิน
+          'notification_id': notificationId.toString(),
+        },
+      );
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          print('Notification saved successfully');
+        } else {
+          print('Error saving notification: ${responseData['message']}');
+        }
+      } else {
+        print('Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error sending notification to server: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

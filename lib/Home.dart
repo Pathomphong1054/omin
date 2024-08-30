@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:omni/Splash_Screen.dart';
+import 'package:omni/Srceen/NotificationScreen.dart';
 import 'package:omni/Srceen/Profile.dart';
 import 'package:omni/Accident_Report.dart';
 import 'package:omni/Srceen/ChatList.dart';
@@ -15,7 +16,10 @@ class HomePage extends StatefulWidget {
   final String userType;
 
   HomePage(
-      {required this.userName, required this.userId, required this.userType, required Map agencyData});
+      {required this.userName,
+      required this.userId,
+      required this.userType,
+      required Map agencyData});
 
   @override
   _HomePageState createState() => _HomePageState();
@@ -32,8 +36,11 @@ class _HomePageState extends State<HomePage> {
     _widgetOptions = <Widget>[
       HomeScreen(),
       NewsPage(),
-      ChatListPage(),
-      SettingsPage(),
+      ChatListPage(
+        userId: widget.userId, // ส่งค่า userId ที่ได้มาจาก HomePage
+        userName: widget.userName,
+      ), // ส่งค่า userName ที่ได้มาจาก HomePage),
+      NotificationScreen(),
       ProfilePage(
         userId: widget.userId,
         userType: widget.userType,

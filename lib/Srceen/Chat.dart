@@ -1,129 +1,280 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
-void main() {
-  runApp(MyApp());
-}
+class ChatPage extends StatefulWidget {
+  final int groupId;
+  final String groupName;
+  final int userId;
+  final String userName;
 
-class MyApp extends StatelessWidget {
+  ChatPage({
+    required this.groupId,
+    required this.groupName,
+    required this.userId,
+    required this.userName,
+  });
+
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: ChatPage(),
-      debugShowCheckedModeBanner: false, // ปิดคำว่า "Debug"
-    );
-  }
+  _ChatPageState createState() => _ChatPageState();
 }
 
-class ChatPage extends StatelessWidget {
+class _ChatPageState extends State<ChatPage> {
+  List<Map<String, dynamic>> messages = [];
+  TextEditingController _controller = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final ImagePicker _picker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchMessages();
+  }
+
+  Future<void> _fetchMessages() async {
+    final response = await http.get(Uri.parse(
+        'http://10.5.50.82/omni/fetch_messages.php?group_id=${widget.groupId}'));
+
+    if (response.statusCode == 200) {
+      setState(() {
+        var decoded = json.decode(response.body);
+        if (decoded is List) {
+          messages = List<Map<String, dynamic>>.from(decoded);
+        } else if (decoded is Map) {
+          messages = [Map<String, dynamic>.from(decoded)];
+        }
+      });
+
+      // Scroll to the bottom of the list
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBottom();
+      });
+    }
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  Future<void> _sendMessage(String message) async {
+    final response = await http.post(
+      Uri.parse('http://10.5.50.82/omni/send_message.php'),
+      body: {
+        'group_id': widget.groupId.toString(),
+        'user_id': widget.userId.toString(),
+        'message': message,
+      },
+    );
+
+    if (response.statusCode == 200) {
+      _controller.clear();
+      _fetchMessages();
+    }
+  }
+
+  Future<void> _sendImage(File image) async {
+    var request = http.MultipartRequest(
+      'POST',
+      Uri.parse('http://10.5.50.82/omni/send_message.php'),
+    );
+    request.fields['group_id'] = widget.groupId.toString();
+    request.fields['user_id'] = widget.userId.toString();
+    request.files.add(await http.MultipartFile.fromPath('image', image.path));
+
+    var response = await request.send();
+
+    if (response.statusCode == 200) {
+      _fetchMessages();
+    }
+  }
+
+  void _pickImage(ImageSource source) async {
+    final pickedFile = await _picker.pickImage(source: source);
+    if (pickedFile != null) {
+      File imageFile = File(pickedFile.path);
+      _sendImage(imageFile);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('กู้ภัยออโต้ค'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.orange,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.orange),
-          onPressed: () {
-            // Handle back button press
-          },
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.search, color: Colors.orange),
-            onPressed: () {
-              // Handle search button press
-            },
-          ),
-        ],
+        title: Text(widget.groupName),
+        backgroundColor: Colors.blueAccent,
       ),
       body: Column(
         children: [
           Expanded(
-            child: ListView(
-              padding: EdgeInsets.all(16.0),
-              children: [
-                _buildReceivedMessage(
-                  'รถของนำ้องสาววิริยาสันตโกไท่จงแมนบริเวณทางม้าลายเมื่อช่วงเช้าที่ผ่านมา\nตำแหน่งนหูสะพานพญานาค\nบนตัวแทนของอนุเสาวรีย์ชัยฯ ใกล้ๆกับทาง\nลงสะพานลอยฝั่งมองใต้อนพยาบาล',
-                ),
-                _buildSentMessage(
-                  'แต่ถ้าเร่งด่วนก้อไปไม่กู้รุนแรงรถดับกลางซอยออกมาไม่ได้',
-                ),
-                _buildReceivedMessage(
-                  'ถูกข้างซดกับบราเดอร์หน้านัยต่อตา\nตำรวจลากสหถเหตุจากหลับใน\nแพ้พ่ายครูฝึกวิชาการจากกรุงเทพพาณิชย์\nฝากด้วยนะรสของอนุที่ใช้หลักเท่านั้น\nรัลสูญบัติคือผู้เสียชีวิตลาน',
-                ),
-                _buildSentMessage(
-                  'วงษ์ตำรวจสอบสวนให้มันถึงไม่เปิด\nอันรถหลักนี้',
-                ),
-                _buildReceivedMessage(
-                  'จุดเกิดเหตุของอนุเสาวรีย์ฯ\nรถยนต์ชนกันพับบนป้ายแนบเนียนหรือฟลุก\nยานน้อยหาจุดนี้นับตังปราบใช่เส้นเปค\nนี้หรือเทอม 05.40 น. มั่นที่ 15 ค.',
-                ),
-              ],
+            child: ListView.builder(
+              controller: _scrollController,
+              itemCount: messages.length,
+              itemBuilder: (context, index) {
+                final message = messages[index];
+                bool isMe = message['user_id'] == widget.userId.toString();
+                String? imageUrl = message['image_path']; // ดึง image_path
+                print("Image URL for message $index: $imageUrl");
+                return _buildMessage(
+                  message['message'],
+                  isMe,
+                  message['profile_image'],
+                  message['name'],
+                  imageUrl, // ใช้ image_path สำหรับรูปภาพที่ส่ง
+                );
+              },
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Message here...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30.0),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16.0),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 8.0),
-                FloatingActionButton(
-                  onPressed: () {
-                    // Handle send message
-                  },
-                  child: Icon(Icons.send, color: Colors.white),
-                  backgroundColor: Colors.orange,
-                ),
-              ],
-            ),
-          ),
+          _buildMessageInput(),
         ],
       ),
     );
   }
 
-  Widget _buildReceivedMessage(String message) {
+  Widget _buildMessage(String message, bool isMe, String? profileImage,
+      String name, String? imageUrl) {
     return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        margin: EdgeInsets.symmetric(vertical: 4.0),
-        padding: EdgeInsets.all(12.0),
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(12.0),
-        ),
-        child: Text(
-          message,
-          style: TextStyle(color: Colors.black),
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 10.0),
+        child: Column(
+          crossAxisAlignment:
+              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!isMe && profileImage != null) ...[
+                  CircleAvatar(
+                    backgroundImage: profileImage.isNotEmpty
+                        ? NetworkImage('http://10.5.50.82/omni/$profileImage')
+                        : AssetImage('assets/default_avatar.png')
+                            as ImageProvider,
+                    radius: 20,
+                    onBackgroundImageError: (_, __) =>
+                        Image.asset('assets/default_avatar.png'),
+                  ),
+                  SizedBox(width: 10),
+                ],
+                Container(
+                  decoration: BoxDecoration(
+                    color: isMe ? Colors.blueAccent : Colors.grey[300],
+                    borderRadius: isMe
+                        ? BorderRadius.only(
+                            topLeft: Radius.circular(12),
+                            topRight: Radius.circular(12),
+                            bottomLeft: Radius.circular(12),
+                          )
+                        : BorderRadius.only(
+                            topLeft: Radius.circular(12),
+                            topRight: Radius.circular(12),
+                            bottomRight: Radius.circular(12),
+                          ),
+                  ),
+                  padding: EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+                  child: imageUrl != null && imageUrl.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            'http://10.5.50.82/omni/$imageUrl',
+                            fit: BoxFit.cover,
+                            width: 200,
+                            height: 300,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Icon(Icons.broken_image,
+                                  color: Colors.red);
+                            },
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return CircularProgressIndicator(
+                                value: progress.expectedTotalBytes != null
+                                    ? progress.cumulativeBytesLoaded /
+                                        progress.expectedTotalBytes!
+                                    : null,
+                              );
+                            },
+                          ),
+                        )
+                      : Text(
+                          message,
+                          style: TextStyle(
+                            color: isMe ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                ),
+                if (isMe && profileImage != null) ...[
+                  SizedBox(width: 10),
+                  CircleAvatar(
+                    backgroundImage: profileImage.isNotEmpty
+                        ? NetworkImage('http://10.5.50.82/omni/$profileImage')
+                        : AssetImage('assets/default_avatar.png')
+                            as ImageProvider,
+                    radius: 20,
+                    onBackgroundImageError: (_, __) =>
+                        Image.asset('assets/default_avatar.png'),
+                  )
+                ],
+              ],
+            ),
+            SizedBox(height: 5),
+            Text(
+              name,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildSentMessage(String message) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Container(
-        margin: EdgeInsets.symmetric(vertical: 4.0),
-        padding: EdgeInsets.all(12.0),
-        decoration: BoxDecoration(
-          color: Colors.orange[300],
-          borderRadius: BorderRadius.circular(12.0),
-        ),
-        child: Text(
-          message,
-          style: TextStyle(color: Colors.white),
-        ),
+  Widget _buildMessageInput() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8.0),
+      color: Colors.white,
+      child: Row(
+        children: [
+          IconButton(
+            icon: Icon(Icons.photo_camera),
+            color: Colors.blueAccent,
+            onPressed: () {
+              _pickImage(ImageSource.camera);
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.photo),
+            color: Colors.blueAccent,
+            onPressed: () {
+              _pickImage(ImageSource.gallery);
+            },
+          ),
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              decoration: InputDecoration.collapsed(
+                hintText: 'Enter your message...',
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.send),
+            color: Colors.blueAccent,
+            onPressed: () {
+              if (_controller.text.isNotEmpty) {
+                _sendMessage(_controller.text);
+              }
+            },
+          ),
+        ],
       ),
     );
   }

@@ -1,185 +1,72 @@
 import 'package:flutter/material.dart';
-
-void main() {
-  runApp(MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: ChatListPage(),
-    );
-  }
-}
+import 'package:omni/Srceen/Chat.dart';
 
 class ChatListPage extends StatelessWidget {
+  final int userId;
+  final String userName;
+
+  ChatListPage({required this.userId, required this.userName});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Chat'),
-        // actions: [
-        //   IconButton(
-        //     icon: Icon(Icons.search),
-        //     onPressed: () {},
-        //   ),
-        // ],
-      ),
-      body: ListView(
-        children: [
-          _buildChatItem(context, 'กรมป้องกันและบรรเทาสาธารณภัย', 'ข้อความใหม่', true),
-          _buildChatItem(context, 'การไฟฟ้านครหลวง', 'ข้อความใหม่', true),
-          _buildChatItem(context, 'การไฟฟ้าส่วนภูมิภาค', 'ข้อความใหม่', true),
-          _buildChatItem(context, 'กองปราบปราม', 'ข้อความใหม่', true),
-          _buildChatItem(context, 'แพทย์ฉุกเฉิน', 'ข้อความใหม่', false),
-          _buildChatItem(context, 'แจ้งเหตุเพลิงไหม้ใหม่', 'ข้อความใหม่', true),
-          _buildChatItem(context, 'แจ้งเหตุอุบัติเหตุร้าย', 'ข้อความใหม่', true),
-          _buildChatItem(context, 'แพทย์ฉุกเฉิน', 'ข้อความใหม่', false),
-        ],
-      ),
-      // bottomNavigationBar: BottomNavigationBar(
-      //   items: const <BottomNavigationBarItem>[
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.home),
-      //       label: '',
-      //     ),
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.show_chart),
-      //       label: '',
-      //     ),
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.chat),
-      //       label: '',
-      //     ),
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.notifications),
-      //       label: '',
-      //     ),
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.person),
-      //       label: '',
-      //     ),
-      //   ],
-      //   currentIndex: 2,
-      //   selectedItemColor: Colors.orange,
-      //   onTap: (index) {
-      //     // Handle bottom navigation tap
-      //   },
-      // ),
-    );
-  }
-
-  Widget _buildChatItem(BuildContext context, String title, String subtitle, bool isOnline) {
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: isOnline ? Colors.green : Colors.grey,
-      ),
-      title: Text(title),
-      subtitle: Text(subtitle),
-      trailing: Text('8m ago'),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => ChatDetailScreen()),
-        );
-      },
-    );
-  }
-}
-
-class ChatDetailScreen extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('กู้ภัยอาสา'),
-        leading: BackButton(),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView(
-              children: [
-                _buildChatBubble('รถตู้คันนี้อยากได้ข้าวใส่แกงฟาร์ม', false),
-                _buildChatBubble('แต่ถ้าไม่ใช่คันไหนที่รถยนต์', true),
-                _buildChatBubble('ถูกยางปัดและเข้าติดบันไดชั้นที่สาม', false),
-                _buildChatBubble('งูพิษที่ถูกจับและนำส่งหน่วยพยาบาล', true),
-                _buildChatBubble('อุบัติเหตุของรถยนต์เป็นการบันทึกอย่างไร', false),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Message here...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30.0),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16.0),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 8.0),
-                FloatingActionButton(
-                  onPressed: () {
-                    // Handle send message
-                  },
-                  child: Icon(Icons.send, color: Colors.white),
-                  backgroundColor: Colors.orange,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: '',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.show_chart),
-            label: '',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat),
-            label: '',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
-            label: '',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: '',
-          ),
-        ],
-        currentIndex: 2,
-        selectedItemColor: Colors.orange,
-        onTap: (index) {
-          // Handle bottom navigation tap
-        },
-      ),
-    );
-  }
-
-  Widget _buildChatBubble(String text, bool isSender) {
-    return Align(
-      alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        padding: EdgeInsets.all(12),
-        margin: EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-        decoration: BoxDecoration(
-          color: isSender ? Colors.orangeAccent : Color.fromARGB(255, 175, 175, 175),
-          borderRadius: BorderRadius.circular(10),
+      body: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: ListView(
+          children: [
+            _buildChatItem(
+                context, 1, 'กรมป้องกันและบรรเทาสาธารณภัย', Icons.security),
+            _buildChatItem(context, 2, 'การไฟฟ้านครหลวง', Icons.flash_on),
+            _buildChatItem(context, 3, 'การไฟฟ้าส่วนภูมิภาค', Icons.flash_on),
+            _buildChatItem(context, 4, 'กองปราบปราม', Icons.local_police),
+            _buildChatItem(context, 5, 'แพทย์ฉุกเฉิน', Icons.local_hospital),
+            _buildChatItem(
+                context, 6, 'แจ้งเหตุเพลิงไหม้ใหม่', Icons.fireplace),
+            _buildChatItem(context, 7, 'แจ้งเหตุอุบัติเหตุร้าย', Icons.warning),
+            _buildChatItem(context, 8, 'แพทย์ฉุกเฉิน', Icons.local_hospital),
+          ],
         ),
-        child: Text(text),
+      ),
+    );
+  }
+
+  Widget _buildChatItem(
+      BuildContext context, int groupId, String groupName, IconData icon) {
+    return Card(
+      elevation: 5,
+      margin: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 5.0),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: ListTile(
+        contentPadding: EdgeInsets.symmetric(vertical: 10.0, horizontal: 15.0),
+        leading: CircleAvatar(
+          backgroundColor: Colors.orangeAccent,
+          child: Icon(icon, color: Colors.white, size: 28),
+          radius: 28,
+        ),
+        title: Text(
+          groupName,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+          maxLines: 1, // จำกัดบรรทัดเดียว
+          overflow: TextOverflow.ellipsis, // แสดง ... เมื่อข้อความยาวเกินไป
+        ),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ChatPage(
+                groupId: groupId,
+                groupName: groupName,
+                userId: userId,
+                userName: userName,
+              ),
+            ),
+          );
+        },
       ),
     );
   }
