@@ -58,8 +58,9 @@ class _ProfilePageState extends State<ProfilePage> {
             phone = data['phone'] ?? 'ไม่มีเบอร์โทร';
             profileImageUrl = data['profile_image'] != null &&
                     data['profile_image'].isNotEmpty
-                ? 'http://10.5.50.82/omni/uploads/profile_image/${data['profile_image']}'
+                ? 'http://10.5.50.82/omni/' + data['profile_image']
                 : 'http://10.5.50.82/omni/uploads/default.png';
+
             if (widget.userType == 'user') {
               birthdate = data['birthdate'] ?? 'ไม่มีวันเกิด';
               gender = data['gender'] ?? 'ไม่มีข้อมูลเพศ';
@@ -94,20 +95,35 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() {
       if (pickedFile != null) {
         _image = File(pickedFile.path);
-        _uploadImage();
       } else {
         print('ไม่มีรูปภาพถูกเลือก.');
       }
     });
   }
 
-  Future<void> _uploadImage() async {
-    if (_image == null) return;
+  Future<void> _updateProfile() async {
+    String updateUrl = 'http://10.5.50.82/omni/Update_profile.php';
+    var request = http.MultipartRequest('POST', Uri.parse(updateUrl));
 
-    String uploadUrl = 'http://10.5.50.82/omni/Upload_image.php';
-    var request = http.MultipartRequest('POST', Uri.parse(uploadUrl));
-    request.files.add(await http.MultipartFile.fromPath('image', _image!.path));
-    request.fields['user_id'] = widget.userId.toString();
+    // ใส่ข้อมูลผู้ใช้ลงในฟอร์ม
+    request.fields['id'] = widget.userId.toString();
+    request.fields['user_type'] = widget.userType;
+    request.fields['name'] = name;
+    request.fields['email'] = email;
+    request.fields['phone'] = phone;
+
+    if (_image != null) {
+      request.files.add(
+          await http.MultipartFile.fromPath('profile_image', _image!.path));
+    }
+
+    if (widget.userType == 'User') {
+      request.fields['birthdate'] = birthdate;
+      request.fields['gender'] = gender;
+      request.fields['address'] = address;
+    } else if (widget.userType == 'Agency') {
+      request.fields['agency_details'] = agency;
+    }
 
     try {
       var res = await request.send();
@@ -138,36 +154,6 @@ class _ProfilePageState extends State<ProfilePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('ข้อผิดพลาดในการอัปโหลดรูปภาพ')),
       );
-    }
-  }
-
-  Future<void> _updateProfile() async {
-    String updateUrl = 'http://10.5.50.82/omni/Update_profile.php';
-    var response = await http.post(
-      Uri.parse(updateUrl),
-      body: {
-        'id': widget.userId.toString(),
-        'name': name,
-        'birthdate': birthdate,
-        'gender': gender,
-        'agency': agency,
-        'email': email,
-        'phone': phone,
-        'address': address,
-        'profile_image': profileImageUrl,
-      },
-    );
-
-    var responseData = json.decode(response.body);
-    if (responseData['status'] == 'success') {
-      setState(() {
-        isProfileSelected = true;
-      });
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('อัปเดตโปรไฟล์เรียบร้อยแล้ว')));
-    } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('การอัปเดตโปรไฟล์ล้มเหลว')));
     }
   }
 

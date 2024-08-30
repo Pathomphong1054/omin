@@ -1,5 +1,9 @@
 <?php
 header('Content-Type: application/json');
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 error_reporting(E_ERROR | E_PARSE);
 
 $servername = "localhost"; 
@@ -17,34 +21,32 @@ $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
 
 if ($user_id > 0 && isset($_FILES['image'])) {
     $target_dir = "uploads/";
-    $target_file = $target_dir . basename($_FILES["image"]["name"]);
-    $imageFileType = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
+    $file_name = basename($_FILES["image"]["name"]);
+    $imageFileType = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+    $unique_file_name = uniqid() . '.' . $imageFileType;
+    $target_file = $target_dir . $unique_file_name;
 
-    // Check if image file is a actual image or fake image
+    // ตรวจสอบว่าไฟล์ที่อัพโหลดเป็นรูปภาพจริงหรือไม่
     $check = getimagesize($_FILES["image"]["tmp_name"]);
     if ($check === false) {
         die(json_encode(['status' => 'error', 'message' => 'File is not an image.']));
     }
 
-    // Check file size (limit 5MB)
+    // ตรวจสอบขนาดไฟล์ (จำกัด 5MB)
     if ($_FILES["image"]["size"] > 5000000) {
         die(json_encode(['status' => 'error', 'message' => 'Sorry, your file is too large.']));
     }
 
-    // Allow certain file formats
+    // อนุญาตให้เฉพาะไฟล์ JPG, JPEG, และ PNG เท่านั้น
     if ($imageFileType != "jpg" && $imageFileType != "png" && $imageFileType != "jpeg") {
         die(json_encode(['status' => 'error', 'message' => 'Sorry, only JPG, JPEG, & PNG files are allowed.']));
     }
 
-    // Check if file already exists and save the file with a unique name
-    if (file_exists($target_file)) {
-        $target_file = $target_dir . uniqid() . '.' . $imageFileType;
-    }
-
+    // ถ้าการอัปโหลดไฟล์สำเร็จ
     if (move_uploaded_file($_FILES["image"]["tmp_name"], $target_file)) {
-        $image_url = "http://10.5.50.82/omni/" . $target_file;
+        $image_url = "http://10.5.50.82/omni/uploads/" . $target_file;
 
-        // Update profile image URL in the database
+        // อัพเดต URL ของรูปภาพโปรไฟล์ในฐานข้อมูล
         $sql = "UPDATE tb_users SET user_image = '$image_url' WHERE user_id = $user_id";
         if ($conn->query($sql) === TRUE) {
             echo json_encode(['status' => 'success', 'image_url' => $image_url]);

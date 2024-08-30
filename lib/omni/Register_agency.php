@@ -39,7 +39,7 @@ $imageFileName = null;
 
 if (isset($_FILES['agency_image']['tmp_name'])) {
     $imageFileName = uniqid() . basename($_FILES['agency_image']['name']);
-    $targetDir = "uploads/profile_image/";
+    $targetDir = "uploads/";
     $targetFile = $targetDir . $imageFileName;
 
     if (move_uploaded_file($_FILES['agency_image']['tmp_name'], $targetFile)) {

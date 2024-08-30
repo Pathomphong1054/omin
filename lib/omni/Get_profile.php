@@ -47,25 +47,25 @@ if ($stmt === false) {
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
-
 if ($result && $result->num_rows > 0) {
     $user = $result->fetch_assoc();
     
     if ($user_type === 'agency' && !empty($user['agency_image'])) {
-        // เก็บแค่ชื่อไฟล์และต่อเส้นทาง
-        $user['profile_image'] = 'uploads/profile_image/' . basename($user['agency_image']);
+        // กำหนดเส้นทางที่ถูกต้องของรูปภาพสำหรับ agency
+        $user['profile_image'] = 'uploads/' . basename($user['agency_image']);
     } elseif ($user_type === 'user' && !empty($user['profile_image'])) {
-        // เก็บแค่ชื่อไฟล์และต่อเส้นทาง
-        $user['profile_image'] = 'uploads/profile_image/' . basename($user['profile_image']);
+        // กำหนดเส้นทางที่ถูกต้องของรูปภาพสำหรับ user
+        $user['profile_image'] = 'uploads/' . basename($user['profile_image']);
     } else {
-        $user['profile_image'] = 'uploads/profile_image/default.png';
+        $user['profile_image'] = 'uploads/default.png';
     }
     
-
     echo json_encode(['status' => 'success', 'data' => $user]);
 } else {
     echo json_encode(['status' => 'error', 'message' => 'User not found']);
 }
+
+
 
 $stmt->close();
 $conn->close();
