@@ -9,6 +9,8 @@ import 'package:omni/Srceen/News.dart';
 import 'package:omni/Srceen/Present.dart';
 import 'package:omni/Srceen/Report.dart';
 import 'package:omni/Srceen/Setting.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class HomePage extends StatefulWidget {
   final String userName;
@@ -37,9 +39,9 @@ class _HomePageState extends State<HomePage> {
       HomeScreen(),
       NewsPage(),
       ChatListPage(
-        userId: widget.userId, // ส่งค่า userId ที่ได้มาจาก HomePage
+        userId: widget.userId,
         userName: widget.userName,
-      ), // ส่งค่า userName ที่ได้มาจาก HomePage),
+      ),
       NotificationScreen(),
       ProfilePage(
         userId: widget.userId,
@@ -344,33 +346,128 @@ class AlertButton extends StatelessWidget {
   }
 }
 
-class NewsWidget extends StatelessWidget {
+class NewsWidget extends StatefulWidget {
+  @override
+  _NewsWidgetState createState() => _NewsWidgetState();
+}
+
+class _NewsWidgetState extends State<NewsWidget> {
+  List notifications = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchNotifications(); // ดึงข้อมูลเมื่อเริ่มต้น
+  }
+
+  Future<void> fetchNotifications() async {
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.5.50.82/omni/fetch_notifications.php'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          notifications = data;
+          isLoading = false;
+        });
+      } else {
+        print('Error: Failed to load notifications');
+      }
+    } catch (e) {
+      print('Error: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Column(
-        children: [
-          Image.network(
-              'https://via.placeholder.com/400x200'), // Replace with your image URL
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'รถยนต์ประสบอุบัติเหตุ',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'A',
-                  ),
-                ),
-                Text('รถเก๋งหักไปชนตรงประสานงากัน'),
-                Text('8m ago'),
-              ],
+    return isLoading
+        ? Center(child: CircularProgressIndicator())
+        : SizedBox(
+            height: 300, // ปรับขนาด ListView ตามความสูงที่เหมาะสม
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal, // เลื่อนในแนวนอน
+              itemCount: notifications.length,
+              itemBuilder: (context, index) {
+                final notification = notifications[index];
+                return _buildNotificationCard(
+                  title: notification['accident_name'],
+                  description: notification['accident_details'],
+                  location: notification['accident_location'],
+                  time: notification['accident_time'],
+                  imageUrl: notification['accident_image'],
+                  createdAt: notification['created_at'],
+                );
+              },
             ),
+          );
+  }
+
+  Widget _buildNotificationCard({
+    required String title,
+    required String description,
+    required String location,
+    required String time,
+    required String imageUrl,
+    required String createdAt,
+  }) {
+    return Container(
+      width: 300, // ปรับความกว้างของการ์ด
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: Padding(
+          padding: const EdgeInsets.all(10.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Accident Report',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              SizedBox(height: 5),
+              Text(
+                'Accident reported: $title',
+                style: TextStyle(fontSize: 16),
+              ),
+              Text(
+                'Location: $location',
+                style: TextStyle(fontSize: 16),
+              ),
+              Text(
+                'Time: $time',
+                style: TextStyle(fontSize: 16),
+              ),
+              SizedBox(height: 5),
+              Text(
+                'Details: $description',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              SizedBox(height: 10),
+              imageUrl != null && imageUrl.isNotEmpty
+                  ? Image.network(
+                      'http://10.5.50.82/omni/$imageUrl',
+                      width: double.infinity, // ปรับขนาดเต็มการ์ด
+                      height: 150, // ความสูงที่เหมาะสม
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Icon(Icons.broken_image, size: 100);
+                      },
+                    )
+                  : Icon(Icons.image, size: 100),
+              SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  createdAt,
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

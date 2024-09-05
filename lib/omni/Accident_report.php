@@ -23,17 +23,17 @@ $accident_distance = $_POST['accident_distance'];
 $accident_time = $_POST['accident_time'];
 $accident_location = $_POST['accident_location'];
 
-if (!empty($_FILES['images']['name'][0])) {
+// Handle image upload (single image)
+$accident_image = '';
+if (!empty($_FILES['image']['name'])) {
     $target_dir = "uploads/";
-    $target_file = $target_dir . basename($_FILES["images"]["name"][0]);
-    if (move_uploaded_file($_FILES["images"]["tmp_name"][0], $target_file)) {
+    $target_file = $target_dir . basename($_FILES["image"]["name"]);
+    if (move_uploaded_file($_FILES["image"]["tmp_name"], $target_file)) {
         $accident_image = $target_file;
     } else {
         echo json_encode(['status' => 'error', 'message' => 'Error uploading image']);
         exit();
     }
-} else {
-    $accident_image = '';
 }
 
 $sql = "INSERT INTO tb_accident (accident_name, accident_location, accident_time, accident_details, accident_image, accident_vehicle, accident_distance) 

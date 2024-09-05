@@ -38,19 +38,21 @@ class _ChatPageState extends State<ChatPage> {
         'http://10.5.50.82/omni/fetch_messages.php?group_id=${widget.groupId}'));
 
     if (response.statusCode == 200) {
-      setState(() {
-        var decoded = json.decode(response.body);
-        if (decoded is List) {
-          messages = List<Map<String, dynamic>>.from(decoded);
-        } else if (decoded is Map) {
-          messages = [Map<String, dynamic>.from(decoded)];
-        }
-      });
+      if (mounted) {
+        setState(() {
+          var decoded = json.decode(response.body);
+          if (decoded is List) {
+            messages = List<Map<String, dynamic>>.from(decoded);
+          } else if (decoded is Map) {
+            messages = [Map<String, dynamic>.from(decoded)];
+          }
+        });
 
-      // Scroll to the bottom of the list
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
+        // Scroll to the bottom of the list
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom();
+        });
+      }
     }
   }
 

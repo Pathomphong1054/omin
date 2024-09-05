@@ -1,22 +1,11 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
-import 'dart:io';
-import 'dart:convert';
-
-void main() {
-  runApp(MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: AccidentReportPage(),
-      debugShowCheckedModeBanner: false, // ปิดคำว่า "Debug"
-    );
-  }
-}
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:omni/Home.dart';
 
 class AccidentReportPage extends StatefulWidget {
   @override
@@ -24,6 +13,7 @@ class AccidentReportPage extends StatefulWidget {
 }
 
 class _AccidentReportPageState extends State<AccidentReportPage> {
+  int _selectedIndex = 0;
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _detailsController = TextEditingController();
@@ -37,27 +27,46 @@ class _AccidentReportPageState extends State<AccidentReportPage> {
   final ImagePicker _picker = ImagePicker();
   String _selectedCategory = 'กรุณาเลือกประเภทอุบัติเหตุ';
 
-  Future<void> _pickImage() async {
-    final List<XFile>? pickedFiles = await _picker.pickMultiImage();
+  LatLng _initialPosition = LatLng(13.7563, 100.5018); // Bangkok
+  LatLng _selectedPosition = LatLng(13.7563, 100.5018);
+  GoogleMapController? _mapController;
 
-    if (pickedFiles != null && pickedFiles.isNotEmpty) {
-      setState(() {
-        _images.addAll(
-            pickedFiles.map((pickedFile) => File(pickedFile.path)).toList());
-      });
-    } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('ไม่ได้เลือกรูปภาพ')));
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final List<XFile>? pickedFiles = await _picker.pickMultiImage();
+      if (pickedFiles != null && pickedFiles.isNotEmpty) {
+        setState(() {
+          _images.addAll(
+              pickedFiles.map((pickedFile) => File(pickedFile.path)).toList());
+        });
+      } else {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('ไม่ได้เลือกรูปภาพ')));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('เกิดข้อผิดพลาดในการเลือกภาพ: $e')));
     }
   }
 
   Future<void> _takePhoto() async {
-    final XFile? pickedFile =
-        await _picker.pickImage(source: ImageSource.camera);
-    if (pickedFile != null) {
-      setState(() {
-        _images.add(File(pickedFile.path));
-      });
+    try {
+      final XFile? pickedFile =
+          await _picker.pickImage(source: ImageSource.camera);
+      if (pickedFile != null) {
+        setState(() {
+          _images.add(File(pickedFile.path));
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('เกิดข้อผิดพลาดในการถ่ายภาพ: $e')));
     }
   }
 
@@ -68,7 +77,6 @@ class _AccidentReportPageState extends State<AccidentReportPage> {
       var request = http.MultipartRequest(
           'POST', Uri.parse('http://10.5.50.82/omni/Accident_report.php'));
 
-      // ส่งข้อมูลฟอร์ม
       request.fields['category'] = _selectedCategory;
       request.fields['headline'] = _nameController.text;
       request.fields['date'] = _dateController.text;
@@ -77,26 +85,24 @@ class _AccidentReportPageState extends State<AccidentReportPage> {
       request.fields['accident_distance'] = _distanceController.text;
       request.fields['accident_time'] = _timeController.text;
       request.fields['accident_location'] = _locationController.text;
+      request.fields['latitude'] = _selectedPosition.latitude.toString();
+      request.fields['longitude'] = _selectedPosition.longitude.toString();
 
-      // เพิ่มรูปภาพลงใน request
-      for (var image in _images) {
-        request.files
-            .add(await http.MultipartFile.fromPath('images[]', image.path));
+      // Upload only one image (first image if exists)
+      if (_images.isNotEmpty) {
+        request.files.add(
+            await http.MultipartFile.fromPath('image', _images.first.path));
       }
 
       try {
         var response = await request.send();
-
         if (response.statusCode == 200) {
           var responseBody = await response.stream.bytesToString();
           var responseData = json.decode(responseBody);
-
           if (responseData['status'] == 'success') {
             ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('รายงานอุบัติเหตุถูกส่งสำเร็จ')));
-
-            // After successful submission, send notification to server
-            _sendNotificationToServer(responseData['notification_id']);
+            // นำทางไปยังหน้าถัดไป เช่น InfoPage
           } else {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                 content: Text('เกิดข้อผิดพลาด: ${responseData['message']}')));
@@ -113,36 +119,133 @@ class _AccidentReportPageState extends State<AccidentReportPage> {
     }
   }
 
-  Future<void> _sendNotificationToServer(int notificationId) async {
-    try {
-      var response = await http.post(
-        Uri.parse('http://10.5.50.82/omni/AddNotification.php'),
-        body: {
-          'user_id': '1', // แทนที่ด้วย user_id ของผู้ใช้ที่ล็อกอิน
-          'notification_id': notificationId.toString(),
-        },
-      );
+  void _onMapCreated(GoogleMapController controller) {
+    _mapController = controller;
+  }
 
-      if (response.statusCode == 200) {
-        var responseData = json.decode(response.body);
-        if (responseData['status'] == 'success') {
-          print('Notification saved successfully');
-        } else {
-          print('Error saving notification: ${responseData['message']}');
+  void _onMapTap(LatLng position) {
+    setState(() {
+      _selectedPosition = position;
+      _mapController?.animateCamera(CameraUpdate.newLatLng(position));
+    });
+  }
+
+  Widget _buildTextField(
+      TextEditingController controller, String labelText, IconData icon,
+      {int maxLines = 1}) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: labelText,
+        labelStyle: TextStyle(fontSize: 18),
+        prefixIcon: Icon(icon),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10.0),
+        ),
+      ),
+      maxLines: maxLines,
+      validator: (value) {
+        if (value!.isEmpty) {
+          return 'กรุณาใส่$labelText';
         }
-      } else {
-        print('Server error: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error sending notification to server: $e');
-    }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildGoogleMap() {
+    return SizedBox(
+      height: 200,
+      child: GoogleMap(
+        onMapCreated: _onMapCreated,
+        initialCameraPosition: CameraPosition(
+          target: _initialPosition,
+          zoom: 14.0,
+        ),
+        onTap: _onMapTap,
+      ),
+    );
+  }
+
+  Widget _buildImagePreview() {
+    return _images.isNotEmpty
+        ? GridView.builder(
+            shrinkWrap: true,
+            itemCount: _images.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 4.0,
+              mainAxisSpacing: 4.0,
+            ),
+            itemBuilder: (BuildContext context, int index) {
+              return Image.file(_images[index], fit: BoxFit.cover);
+            },
+          )
+        : Container();
+  }
+
+  Widget _buildImageButtons() {
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton(
+            onPressed: _pickImage,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.photo),
+                SizedBox(width: 8),
+                Text('เพิ่มรูปภาพ', style: TextStyle(color: Colors.orange)),
+              ],
+            ),
+            style: ElevatedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.0),
+              ),
+            ),
+          ),
+        ),
+        SizedBox(width: 8),
+        Expanded(
+          child: ElevatedButton(
+            onPressed: _takePhoto,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.camera),
+                SizedBox(width: 8),
+                Text('ถ่ายภาพ', style: TextStyle(color: Colors.orange)),
+              ],
+            ),
+            style: ElevatedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.0),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('รายงานอุบัติเหตุ'),
+        title: Text(
+          'รายงานอุบัติเหตุ',
+          style: TextStyle(
+              fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.orange, Colors.deepOrange],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
       ),
       body: Padding(
         padding: EdgeInsets.all(16.0),
@@ -153,147 +256,90 @@ class _AccidentReportPageState extends State<AccidentReportPage> {
               DropdownButtonFormField<String>(
                 decoration: InputDecoration(
                   labelText: 'หมวดหมู่',
+                  labelStyle: TextStyle(fontSize: 18),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30.0),
+                    borderRadius: BorderRadius.circular(10.0),
                   ),
                 ),
-                value: _selectedCategory,
-                onChanged: (value) {
+                value: _selectedCategory == 'กรุณาเลือกประเภทอุบัติเหตุ'
+                    ? null
+                    : _selectedCategory,
+                hint: Text('กรุณาเลือกประเภทอุบัติเหตุ'),
+                items: <String>[
+                  'อุบัติเหตุจากรถยนต์',
+                  'อุบัติเหตุจากจักรยานยนต์',
+                  'อุบัติเหตุจากจักรยาน',
+                  'อุบัติเหตุจากคนเดินเท้า'
+                ].map<DropdownMenuItem<String>>((String value) {
+                  return DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value),
+                  );
+                }).toList(),
+                onChanged: (String? newValue) {
                   setState(() {
-                    _selectedCategory = value!;
+                    _selectedCategory = newValue!;
                   });
                 },
-                items: [
-                  'กรุณาเลือกประเภทอุบัติเหตุ',
-                  'อุบัติเหตุรถยนต์',
-                  'อุบัติเหตุจากรถจักรยานยนต์',
-                  'อุบัติเหตุจากรถบรรทุก',
-                  'อุบัติเหตุจากรถไฟ'
-                ]
-                    .map((label) =>
-                        DropdownMenuItem(child: Text(label), value: label))
-                    .toList(),
-              ),
-              SizedBox(height: 16.0),
-              TextFormField(
-                controller: _nameController,
-                decoration: InputDecoration(
-                  labelText: 'หัวข้อข่าว',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30.0),
-                  ),
-                ),
                 validator: (value) {
-                  if (value!.isEmpty) {
-                    return 'กรุณาใส่หัวข้อข่าว';
+                  if (value == null || value.isEmpty) {
+                    return 'กรุณาเลือกประเภทอุบัติเหตุ';
                   }
                   return null;
                 },
               ),
-              SizedBox(height: 16.0),
-              TextFormField(
-                controller: _locationController,
-                decoration: InputDecoration(
-                  labelText: 'สถานที่เกิดเหตุ',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30.0),
-                  ),
-                ),
-                validator: (value) {
-                  if (value!.isEmpty) {
-                    return 'กรุณาใส่สถานที่เกิดเหตุ';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16.0),
-              TextFormField(
-                controller: _timeController,
-                decoration: InputDecoration(
-                  labelText: 'เวลาเกิดเหตุ',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30.0),
-                  ),
-                ),
-                validator: (value) {
-                  if (value!.isEmpty) {
-                    return 'กรุณาใส่เวลาเกิดเหตุ';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16.0),
-              TextFormField(
-                controller: _vehicleController,
-                decoration: InputDecoration(
-                  labelText: 'ยานพาหนะที่เกี่ยวข้อง',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30.0),
-                  ),
-                ),
-                validator: (value) {
-                  if (value!.isEmpty) {
-                    return 'กรุณาใส่ยานพาหนะที่เกี่ยวข้อง';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16.0),
-              TextFormField(
-                controller: _distanceController,
-                decoration: InputDecoration(
-                  labelText: 'ระยะห่าง',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30.0),
-                  ),
-                ),
-                validator: (value) {
-                  if (value!.isEmpty) {
-                    return 'กรุณาใส่ระยะห่าง';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16.0),
-              TextFormField(
-                controller: _detailsController,
-                maxLines: 4,
-                decoration: InputDecoration(
-                  labelText: 'รายละเอียด',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30.0),
-                  ),
-                ),
-                validator: (value) {
-                  if (value!.isEmpty) {
-                    return 'กรุณาใส่รายละเอียด';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16.0),
-              Column(
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: _pickImage,
-                    icon: Icon(Icons.image),
-                    label: Text('เลือกรูปภาพจากแกลเลอรี'),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: _takePhoto,
-                    icon: Icon(Icons.camera),
-                    label: Text('ถ่ายภาพด้วยกล้อง'),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16.0),
+              SizedBox(height: 16),
+              _buildTextField(_nameController, 'หัวข้อ', Icons.edit),
+              SizedBox(height: 16),
+              _buildTextField(_dateController, 'วันที่', Icons.calendar_today),
+              SizedBox(height: 16),
+              _buildTextField(_timeController, 'เวลา', Icons.access_time),
+              SizedBox(height: 16),
+              _buildTextField(
+                  _vehicleController, 'ยานพาหนะ', Icons.directions_car),
+              SizedBox(height: 16),
+              _buildTextField(_distanceController, 'ระยะทาง', Icons.map),
+              SizedBox(height: 16),
+              _buildTextField(
+                  _locationController, 'สถานที่', Icons.location_on),
+              SizedBox(height: 16),
+              _buildTextField(
+                  _detailsController, 'รายละเอียด', Icons.description,
+                  maxLines: 4),
+              SizedBox(height: 16),
+              _buildGoogleMap(),
+              SizedBox(height: 16),
+              _buildImageButtons(),
+              SizedBox(height: 16),
+              _buildImagePreview(),
+              SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _submitForm,
-                child: Text('ส่งรายงาน'),
+                child: Text(
+                  'ส่งรายงาน',
+                  style: TextStyle(color: Colors.orange),
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(vertical: 16.0),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                ),
               ),
             ],
           ),
         ),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.add_box), label: 'รายงานอุบัติเหตุ'),
+          BottomNavigationBarItem(icon: Icon(Icons.info), label: 'Info'),
+        ],
+        currentIndex: _selectedIndex,
+        selectedItemColor: Colors.orange,
+        onTap: _onItemTapped,
       ),
     );
   }
